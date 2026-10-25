@@ -53,7 +53,10 @@ struct DataTrackerWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: AppGroup.widgetKind, provider: UsageProvider()) { entry in
             UsageWidgetView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
+                .containerBackground(for: .widget) {
+                    // Near-black with a glow in today's status colour (green / orange / pink).
+                    GlowBackground(color: entry.snapshot.level.color, from: .top, radius: 220)
+                }
         }
         .configurationDisplayName("Data Today")
         .description("Today's mobile data usage and what's left of your budget.")
@@ -85,56 +88,64 @@ struct UsageWidgetView: View {
     }
 
     private var small: some View {
-        VStack(spacing: 6) {
-            UsageRing(fraction: s.todayFraction, color: s.level.color, lineWidth: 9) {
-                VStack(spacing: 0) {
-                    Text(DataFormat.string(s.todayBytes))
-                        .font(.system(.subheadline, design: .rounded).weight(.bold))
-                        .minimumScaleFactor(0.7)
-                    Text(percentText)
-                        .font(.caption2)
-                        .foregroundStyle(s.level.color)
-                }
+        UsageRing(fraction: s.todayFraction, color: s.level.color, lineWidth: 10) {
+            VStack(spacing: 2) {
+                Text("Today")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.secondaryText)
+                figureText(s.todayBytes, font: .system(.title3).weight(.medium), unitFont: .caption2)
+                    .monospacedDigit()
+                Text(remainingText)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(s.level.color)
             }
-            Text("\(remainingText) today")
-                .font(.caption.weight(.medium))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .padding(.horizontal, 14)
         }
+        .environment(\.colorScheme, .dark)
     }
 
     private var medium: some View {
         HStack(spacing: 16) {
-            UsageRing(fraction: s.todayFraction, color: s.level.color, lineWidth: 11) {
-                VStack(spacing: 0) {
-                    Text(DataFormat.string(s.todayBytes))
-                        .font(.system(.headline, design: .rounded).weight(.bold))
-                        .minimumScaleFactor(0.7)
+            UsageRing(fraction: s.todayFraction, color: s.level.color, lineWidth: 10) {
+                VStack(spacing: 2) {
+                    Text("Used today")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.secondaryText)
+                    figureText(s.todayBytes, font: .system(.title3).weight(.medium), unitFont: .caption2)
+                        .monospacedDigit()
                     Text("of \(DataFormat.string(s.dailyBudgetBytes))")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .minimumScaleFactor(0.7)
+                        .foregroundStyle(Theme.secondaryText)
                 }
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .padding(.horizontal, 12)
             }
-            VStack(alignment: .leading, spacing: 6) {
-                row("Today", remainingText, color: s.level.color)
-                row("Bundle left", DataFormat.string(s.bundleRemainingBytes))
-                row("Days left", "\(s.daysLeft)")
-                if let last = s.lastSampleDate {
-                    Text("Updated \(last, style: .time)")
+            VStack(alignment: .leading, spacing: 8) {
+                Text(remainingText + " today")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(s.level.color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Bundle")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.secondaryText)
+                    figureText(s.bundleRemainingBytes, font: .headline.weight(.medium), unitFont: .caption2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    TickMeter(fraction: s.bundleFraction, color: Theme.lime, segments: 20, height: 14)
+                    Text("left · \(s.daysLeft) \(s.daysLeft == 1 ? "day" : "days")")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.secondaryText)
                 }
             }
+            .foregroundStyle(.white)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-
-    private func row(_ title: String, _ value: String, color: Color = .primary) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title).font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(color).lineLimit(1)
-        }
+        .environment(\.colorScheme, .dark)
     }
 
     private var circular: some View {

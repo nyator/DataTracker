@@ -115,6 +115,8 @@ struct SettingsView: View {
                 Text("Permissions")
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Theme.page)
         .navigationTitle("Settings")
         .scrollDismissesKeyboard(.interactively)
         .toolbar {

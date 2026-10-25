@@ -74,10 +74,17 @@ enum Budget {
 }
 
 enum DataFormat {
-    /// "1.84 GB" for 1 GB and above, "312 MB" below.
+    /// "1.84 GB" for 1 GB and above, "312 MB" below. The space is non-breaking,
+    /// so a line never ends between a number and its unit.
     static func string(_ bytes: Int64) -> String {
+        let p = parts(bytes)
+        return "\(p.value)\u{00A0}\(p.unit)"
+    }
+
+    /// Number and unit separately, for styling them differently.
+    static func parts(_ bytes: Int64) -> (value: String, unit: String) {
         let gb = Budget.gb(fromBytes: bytes)
-        if abs(gb) >= 1 { return String(format: "%.2f GB", gb) }
-        return String(format: "%.0f MB", Double(bytes) / 1_048_576)
+        if abs(gb) >= 1 { return (String(format: "%.2f", gb), "GB") }
+        return (String(format: "%.0f", Double(bytes) / 1_048_576), "MB")
     }
 }

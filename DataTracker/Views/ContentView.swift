@@ -22,6 +22,9 @@ struct ContentView: View {
                     }
                 }
         }
+        // The AURA-inspired look is dark only; white controls echo its white pill buttons.
+        .preferredColorScheme(.dark)
+        .tint(.white)
         .task {
             await Notifier.requestAuthorization()
             model.refresh()   // a threshold already crossed alerts now that it can

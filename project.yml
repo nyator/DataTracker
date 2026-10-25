@@ -1,0 +1,89 @@
+# XcodeGen spec — the single source of truth for the Xcode project.
+# DataTracker.xcodeproj is generated from this file (it is git-ignored):
+#   brew install xcodegen && xcodegen generate
+# Generating instead of committing the .xcodeproj means the project opens in
+# Xcode 16 locally *and* builds with the newest Xcode in CI — no project-format
+# version can leak in from a newer Xcode.
+
+name: DataTracker
+
+options:
+  bundleIdPrefix: com.builtelo
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: 2TB72JR5D3
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+
+targets:
+  DataTracker:
+    type: application
+    platform: iOS
+    sources:
+      - path: DataTracker
+      - path: Shared
+    dependencies:
+      - target: DataTrackerWidget
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.builtelo.DataTracker
+        INFOPLIST_FILE: DataTracker/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: DataTracker/DataTracker.entitlements
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  DataTrackerWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: DataTrackerWidget
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.builtelo.DataTracker.Widget
+        PRODUCT_NAME: DataTrackerWidget
+        INFOPLIST_FILE: DataTrackerWidget/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: DataTrackerWidget/DataTrackerWidget.entitlements
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
+
+  # Unit tests for the counter/rollover/budget logic. They compile the Shared
+  # sources directly, so they need no host app and run in any simulator.
+  DataTrackerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: DataTrackerTests
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.builtelo.DataTrackerTests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+
+schemes:
+  DataTracker:
+    build:
+      targets:
+        DataTracker: all
+        DataTrackerWidget: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - DataTrackerTests
+    archive:
+      config: Release

@@ -1,0 +1,75 @@
+require "base64"
+
+default_platform(:ios)
+
+APP_ID    = "com.builtelo.DataTracker"
+WIDGET_ID = "com.builtelo.DataTracker.Widget"
+PROJECT   = "DataTracker.xcodeproj"
+SCHEME    = "DataTracker"
+TEAM_ID   = ENV["APPLE_TEAM_ID"] || "2TB72JR5D3"
+
+platform :ios do
+  desc "Run the unit tests on a simulator"
+  lane :test do
+    run_tests(project: PROJECT, scheme: SCHEME, only_testing: ["DataTrackerTests"],
+              xcargs: "CODE_SIGNING_ALLOWED=NO", output_directory: "fastlane/test_output")
+  end
+
+  desc "Sign, build and upload to TestFlight (CI)"
+  lane :beta do
+    # Temporary keychain on CI, so certificates never touch a login keychain.
+    setup_ci
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_KEY_P8_BASE64"),
+      is_key_content_base64: true,
+      in_house: false
+    )
+
+    # Distribution certificate (from the DIST_CERT_P12_BASE64 secret) plus
+    # Apple's intermediate certificate, so codesign can build the trust chain.
+    p12 = File.expand_path("dist.p12", Dir.tmpdir)
+    File.binwrite(p12, Base64.decode64(ENV.fetch("DIST_CERT_P12_BASE64")))
+    wwdr = File.expand_path("AppleWWDRCAG3.cer", Dir.tmpdir)
+    sh("curl", "-fsSL", "-o", wwdr, "https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer")
+    import_certificate(certificate_path: wwdr, keychain_name: "fastlane_tmp_keychain", keychain_password: "")
+    import_certificate(certificate_path: p12, certificate_password: ENV.fetch("DIST_CERT_PASSWORD"),
+                       keychain_name: "fastlane_tmp_keychain", keychain_password: "")
+
+    # App Store provisioning profiles for the app and the widget. Created on
+    # the first run, then reused; regenerated if the App ID's capabilities change.
+    profiles = {}
+    { APP_ID => "DataTracker", WIDGET_ID => "DataTrackerWidget" }.each do |bundle_id, target|
+      get_provisioning_profile(api_key: api_key, app_identifier: bundle_id, team_id: TEAM_ID)
+      profile_name = lane_context[SharedValues::SIGH_NAME]
+      profiles[bundle_id] = profile_name
+      update_code_signing_settings(
+        path: PROJECT,
+        targets: [target],
+        use_automatic_signing: false,
+        team_id: TEAM_ID,
+        code_sign_identity: "Apple Distribution",
+        profile_name: profile_name,
+        bundle_identifier: bundle_id
+      )
+    end
+
+    # Build numbers must increase for each upload of the same version.
+    build_number = latest_testflight_build_number(api_key: api_key, app_identifier: APP_ID, initial_build_number: 0) + 1
+
+    build_app(
+      project: PROJECT,
+      scheme: SCHEME,
+      configuration: "Release",
+      export_method: "app-store",
+      export_options: { provisioningProfiles: profiles },
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number}",
+      output_directory: "build",
+      clean: true
+    )
+
+    upload_to_testflight(api_key: api_key, skip_waiting_for_build_processing: true)
+  end
+end

@@ -1,0 +1,2 @@
+app_identifier("com.builtelo.DataTracker")
+team_id(ENV["APPLE_TEAM_ID"] || "2TB72JR5D3")

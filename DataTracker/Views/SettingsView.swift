@@ -70,14 +70,22 @@ struct SettingsView: View {
                         .multilineTextAlignment(.trailing)
                     Text("GB").foregroundStyle(.secondary)
                 }
-                Button(correctionApplied ? "Updated" : "Apply correction") {
-                    guard let gb = usedSoFarGB else { return }
-                    model.setBundleUsed(gb: gb)
-                    usedSoFarGB = nil
-                    correctionApplied = true
-                    hideKeyboard()
+                // The button appears once there's a value to apply. A disabled
+                // grey button here read like placeholder text.
+                if let gb = usedSoFarGB {
+                    Button {
+                        model.setBundleUsed(gb: gb)
+                        usedSoFarGB = nil
+                        correctionApplied = true
+                        hideKeyboard()
+                    } label: {
+                        Label("Apply: set used to \(gb.formatted(.number.precision(.fractionLength(0...2)))) GB",
+                              systemImage: "checkmark.circle")
+                    }
+                } else if correctionApplied {
+                    Label("Bundle usage updated", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
                 }
-                .disabled(usedSoFarGB == nil)
 
                 Button("Start new bundle today", role: .destructive) { confirmNewBundle = true }
             } header: {
@@ -117,7 +125,9 @@ struct SettingsView: View {
         }
         .onAppear { draft = model.settings }
         .onChange(of: draft) { _, newValue in model.update(sanitized(newValue)) }
-        .onChange(of: usedSoFarGB) { _, _ in correctionApplied = false }
+        .onChange(of: usedSoFarGB) { _, newValue in
+            if newValue != nil { correctionApplied = false }
+        }
         .confirmationDialog("Start a new bundle today?", isPresented: $confirmNewBundle, titleVisibility: .visible) {
             Button("Start new bundle", role: .destructive) {
                 model.startNewBundleToday()

@@ -48,6 +48,22 @@ enum Budget {
         return daysAfterToday > 0 ? remaining / Int64(daysAfterToday) : remaining
     }
 
+    /// How far usage is from an even pace through the bundle. Positive means
+    /// under pace (data in hand), negative means over. Nil outside the bundle period.
+    ///
+    /// "Even pace" counts time to the second: at noon on day 29 of 90,
+    /// 28.5/90 of the bundle is expected to be used. So it doesn't jump by a
+    /// whole day's budget at midnight.
+    static func pace(_ settings: BudgetSettings, bundleUsed: Int64,
+                     now: Date, calendar: Calendar = .current) -> Int64? {
+        let start = calendar.startOfDay(for: settings.startDate)
+        let end = endDate(settings, calendar: calendar)
+        guard now >= start, now < end else { return nil }
+        let fraction = now.timeIntervalSince(start) / end.timeIntervalSince(start)
+        let expected = Int64(Double(bytes(fromGB: settings.bundleSizeGB)) * fraction)
+        return expected - bundleUsed
+    }
+
     /// Thresholds that today's usage has reached but that haven't alerted yet.
     static func newlyCrossedThresholds(todayUsed: Int64, budget: Int64,
                                        thresholds: [Int], alreadyAlerted: [Int]) -> [Int] {

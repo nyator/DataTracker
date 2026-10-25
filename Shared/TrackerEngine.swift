@@ -116,6 +116,7 @@ enum TrackerEngine {
             daysLeft: Budget.daysLeft(settings, now: now, calendar: calendar),
             recommendedFromTomorrowBytes: Budget.recommendedFromTomorrow(settings, bundleUsed: state.bundleUsedBytes,
                                                                          now: now, calendar: calendar),
+            paceBytes: Budget.pace(settings, bundleUsed: state.bundleUsedBytes, now: now, calendar: calendar),
             warningPercent: settings.warningPercent,
             limitPercent: settings.limitPercent,
             history: history,

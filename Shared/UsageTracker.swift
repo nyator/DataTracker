@@ -74,9 +74,12 @@ final class UsageTracker {
     /// USSD balance check). Tracking continues from this figure.
     func setBundleUsed(bytes: Int64) {
         store.withLock {
+            var settings = store.loadSettings()
+            settings.isSetUp = true
+            store.saveSettings(settings)
             var state = store.loadState()
             state.bundleUsedBytes = max(bytes, 0)
-            TrackerEngine.recordBudget(in: &state, settings: store.loadSettings(), now: Date(), calendar: calendar)
+            TrackerEngine.recordBudget(in: &state, settings: settings, now: Date(), calendar: calendar)
             store.saveState(state)
         }
     }
@@ -87,6 +90,7 @@ final class UsageTracker {
         store.withLock {
             var settings = store.loadSettings()
             settings.startDate = calendar.startOfDay(for: Date())
+            settings.isSetUp = true
             store.saveSettings(settings)
             var state = store.loadState()
             state.bundleUsedBytes = 0

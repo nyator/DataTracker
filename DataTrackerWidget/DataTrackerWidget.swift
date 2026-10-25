@@ -96,7 +96,7 @@ struct UsageWidgetView: View {
                         .foregroundStyle(s.level.color)
                 }
             }
-            Text(remainingText)
+            Text("\(remainingText) today")
                 .font(.caption.weight(.medium))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)

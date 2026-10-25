@@ -37,6 +37,7 @@ enum DemoMode {
 
         var settings = BudgetSettings()
         settings.startDate = calendar.date(byAdding: .day, value: -28, to: calendar.startOfDay(for: now))!
+        settings.isSetUp = true
         store.saveSettings(settings)
 
         var state = TrackerState()

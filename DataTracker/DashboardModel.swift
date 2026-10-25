@@ -26,6 +26,9 @@ final class DashboardModel: ObservableObject {
     }
 
     func update(_ newSettings: BudgetSettings) {
+        var newSettings = newSettings
+        // Once set up, stays set up, even if a Settings screen holds an older copy.
+        newSettings.isSetUp = newSettings.isSetUp || settings.isSetUp
         guard newSettings != settings else { return }
         settings = newSettings
         tracker.updateSettings(newSettings)
@@ -34,7 +37,15 @@ final class DashboardModel: ObservableObject {
 
     func setBundleUsed(gb: Double) {
         tracker.setBundleUsed(bytes: Budget.bytes(fromGB: gb))
+        settings = tracker.settings
         reloadSnapshot()
+    }
+
+    /// Hides the first-run card without entering anything.
+    func skipSetup() {
+        var s = settings
+        s.isSetUp = true
+        update(s)
     }
 
     func startNewBundleToday() {

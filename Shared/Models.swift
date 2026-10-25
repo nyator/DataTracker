@@ -12,6 +12,10 @@ struct BudgetSettings: Codable, Equatable {
     /// When false the daily budget adapts: remaining data ÷ days left.
     var useFixedBudget: Bool = false
     var fixedDailyBudgetGB: Double = 2.4
+    /// False until the user has entered usage so far, started a new bundle, or
+    /// skipped setup. While false the dashboard asks for it: the counters can't
+    /// know what was used before the app was installed.
+    var isSetUp: Bool = false
 
     init() {}
 
@@ -27,6 +31,7 @@ struct BudgetSettings: Codable, Equatable {
         limitPercent = try c.decodeIfPresent(Int.self, forKey: .limitPercent) ?? d.limitPercent
         useFixedBudget = try c.decodeIfPresent(Bool.self, forKey: .useFixedBudget) ?? d.useFixedBudget
         fixedDailyBudgetGB = try c.decodeIfPresent(Double.self, forKey: .fixedDailyBudgetGB) ?? d.fixedDailyBudgetGB
+        isSetUp = try c.decodeIfPresent(Bool.self, forKey: .isSetUp) ?? d.isSetUp
     }
 
     /// The alert thresholds in ascending order, without duplicates.
@@ -96,6 +101,8 @@ struct UsageSnapshot: Equatable {
     var daysLeft: Int
     /// What's left after today, spread over the days after today.
     var recommendedFromTomorrowBytes: Int64
+    /// Positive: under an even pace through the bundle. Negative: over. See `Budget.pace`.
+    var paceBytes: Int64?
     var warningPercent: Int
     var limitPercent: Int
     /// The last 14 days, oldest first, today last.
@@ -136,7 +143,8 @@ struct UsageSnapshot: Equatable {
         }
         return UsageSnapshot(date: Date(), todayBytes: Int64(gb * 1.6), dailyBudgetBytes: Int64(gb * 2.4),
                              bundleBytes: Int64(gb * 217), bundleUsedBytes: Int64(gb * 68.4), daysLeft: 62,
-                             recommendedFromTomorrowBytes: Int64(gb * 2.43), warningPercent: 80, limitPercent: 100,
+                             recommendedFromTomorrowBytes: Int64(gb * 2.43), paceBytes: Int64(gb * 1.2),
+                             warningPercent: 80, limitPercent: 100,
                              history: history, lastSampleDate: Date(), hasCellularInterface: true)
     }
 }

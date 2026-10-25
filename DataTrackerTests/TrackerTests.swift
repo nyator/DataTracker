@@ -116,6 +116,27 @@ final class BudgetTests: XCTestCase {
         XCTAssertEqual(Budget.dailyBudget(s, bundleUsed: 100 * gb, todayUsed: 0, now: TestClock.date(5, 0), calendar: cal), 2 * gb)
     }
 
+    func testPace() {
+        let s = settings()
+        // Noon on day 46 (45.5 of 90 days elapsed): even pace is 217 × 45.5/90 ≈ 109.7 GB.
+        let noon = TestClock.date(46, 12)
+        let expected = Double(217 * gb) * 45.5 / 90
+        let under = Budget.pace(s, bundleUsed: 100 * gb, now: noon, calendar: cal)!
+        XCTAssertEqual(Double(under), expected - Double(100 * gb), accuracy: 1_000)
+        XCTAssertLessThan(Budget.pace(s, bundleUsed: 120 * gb, now: noon, calendar: cal)!, 0)
+        XCTAssertNil(Budget.pace(s, bundleUsed: 0, now: TestClock.date(91, 0), calendar: cal), "after the bundle ends")
+        XCTAssertNil(Budget.pace(s, bundleUsed: 0, now: TestClock.date(0, 12), calendar: cal), "before it starts")
+    }
+
+    func testSettingsDecodeWithoutNewFieldsKeepsDefaults() throws {
+        // A settings blob saved before `isSetUp` existed must still decode.
+        let old = #"{"bundleSizeGB":100,"durationDays":30}"#.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(BudgetSettings.self, from: old)
+        XCTAssertEqual(decoded.bundleSizeGB, 100)
+        XCTAssertEqual(decoded.warningPercent, 80)
+        XCTAssertFalse(decoded.isSetUp)
+    }
+
     func testThresholds() {
         XCTAssertEqual(Budget.newlyCrossedThresholds(todayUsed: 79, budget: 100, thresholds: [80, 100], alreadyAlerted: []), [])
         XCTAssertEqual(Budget.newlyCrossedThresholds(todayUsed: 80, budget: 100, thresholds: [80, 100], alreadyAlerted: []), [80])
@@ -229,7 +250,9 @@ final class UsageTrackerTests: XCTestCase {
         let result = tracker.refresh(evaluateAlerts: false)
         XCTAssertEqual(result.snapshot.bundleUsedBytes, 4_000)
 
+        XCTAssertFalse(tracker.settings.isSetUp)
         tracker.setBundleUsed(bytes: 50 * Int64(Budget.bytesPerGB))
+        XCTAssertTrue(tracker.settings.isSetUp, "entering usage so far completes setup")
         counter += 1_000
         uptime += 60
         XCTAssertEqual(tracker.refresh(evaluateAlerts: false).snapshot.bundleUsedBytes, 50 * Int64(Budget.bytesPerGB) + 1_000)

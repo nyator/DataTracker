@@ -36,6 +36,30 @@ jobs:
       - name: Unit tests
         run: bundle exec fastlane test
 
+      # Catches a mis-pasted secret before signing, naming which one is wrong.
+      # Prints only lengths and short fingerprints, never the values.
+      - name: Check signing secrets
+        if: github.event_name != 'pull_request'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          DIST_CERT_P12_BASE64: ${{ secrets.DIST_CERT_P12_BASE64 }}
+          DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+        run: |
+          ok=true
+          check() { # name, actual, expected
+            if [ "$2" = "$3" ]; then echo "OK    $1"; else echo "WRONG $1: got $2, expected $3"; ok=false; fi
+          }
+          check "ASC_KEY_ID length" "${#ASC_KEY_ID}" 10
+          check "ASC_ISSUER_ID length" "${#ASC_ISSUER_ID}" 36
+          check "ASC_KEY_P8_BASE64 length" "${#ASC_KEY_P8_BASE64}" 344
+          check "DIST_CERT_P12_BASE64 length" "${#DIST_CERT_P12_BASE64}" 4272
+          check "DIST_CERT_PASSWORD length" "${#DIST_CERT_PASSWORD}" 32
+          check "ASC_KEY_P8_BASE64 fingerprint" "$(printf %s "$ASC_KEY_P8_BASE64" | base64 -D 2>/dev/null | shasum -a 256 | cut -c1-12)" ca1531f3da97
+          check "DIST_CERT_P12_BASE64 fingerprint" "$(printf %s "$DIST_CERT_P12_BASE64" | base64 -D 2>/dev/null | shasum -a 256 | cut -c1-12)" 88a7a26e169e
+          $ok || { echo "::error::One or more secrets don't match. Re-paste the ones marked WRONG."; exit 1; }
+
       # Uploads only from main (push or manual run), never from pull requests.
       - name: Build, sign and upload to TestFlight
         if: github.event_name != 'pull_request'

@@ -30,9 +30,9 @@ struct SettingsView: View {
             }
 
             Section {
-                Toggle("Fixed daily budget", isOn: $draft.useFixedBudget)
+                Toggle("Use my own daily limit", isOn: $draft.useFixedBudget)
                 if draft.useFixedBudget {
-                    LabeledContent("Budget per day") {
+                    LabeledContent("Daily limit") {
                         TextField("GB", value: $draft.fixedDailyBudgetGB, format: .number.precision(.fractionLength(0...2)))
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
@@ -45,21 +45,16 @@ struct SettingsView: View {
                 Text("Daily budget")
             } footer: {
                 Text(draft.useFixedBudget
-                     ? "The same budget every day."
+                     ? "The same limit every day."
                      : "Data left at the start of the day ÷ days left, so the budget rises if you under-use and falls if you over-use.")
             }
 
             Section {
-                Stepper(value: $draft.warningPercent, in: 10...200, step: 5) {
-                    LabeledContent("First alert", value: "\(draft.warningPercent)%")
-                }
-                Stepper(value: $draft.limitPercent, in: 10...200, step: 5) {
-                    LabeledContent("Second alert", value: "\(draft.limitPercent)%")
-                }
+                AlertThresholdRows(settings: $draft, budgetBytes: model.effectiveBudget(for: draft))
             } header: {
                 Text("Alerts")
             } footer: {
-                Text("Each alert fires at most once per day, as a percentage of that day's budget.")
+                Text("Each warning comes at most once per day, as a percentage of that day's budget.")
             }
 
             Section {
@@ -113,6 +108,14 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("Permissions")
+            }
+
+            Section {
+                NavigationLink {
+                    HelpView()
+                } label: {
+                    Label("How to use DataTracker", systemImage: "questionmark.circle")
+                }
             }
         }
         .scrollContentBackground(.hidden)

@@ -14,6 +14,14 @@ struct ContentView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         NavigationLink {
+                            HelpView()
+                        } label: {
+                            Image(systemName: "questionmark.circle")
+                        }
+                        .accessibilityLabel("How to use")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink {
                             SettingsView()
                         } label: {
                             Image(systemName: "gearshape")

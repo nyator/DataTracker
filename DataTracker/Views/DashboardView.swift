@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @EnvironmentObject private var model: DashboardModel
+    @State private var showLimit = false
 
     var body: some View {
         let s = model.snapshot
@@ -19,7 +20,7 @@ struct DashboardView: View {
                     SetupCard(skip: model.skipSetup)
                 }
 
-                TodayCard(snapshot: s)
+                TodayCard(snapshot: s, isOwnLimit: model.settings.useFixedBudget) { showLimit = true }
                 // Pace is meaningless until real usage so far has been entered.
                 BundleCard(snapshot: s, showPace: model.settings.isSetUp,
                            fixedBudget: model.settings.useFixedBudget)
@@ -32,6 +33,7 @@ struct DashboardView: View {
         }
         .background(Theme.page)
         .refreshable { model.refresh() }
+        .sheet(isPresented: $showLimit) { LimitSheet() }
     }
 }
 
@@ -60,6 +62,8 @@ private struct CardHeader: View {
 
 private struct TodayCard: View {
     let snapshot: UsageSnapshot
+    let isOwnLimit: Bool
+    let editLimit: () -> Void
 
     /// Grows with the text size, capped so it still fits a phone's width.
     @ScaledMetric(relativeTo: .title) private var ringSize: CGFloat = 220
@@ -93,6 +97,20 @@ private struct TodayCard: View {
                 .font(.headline)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
+
+            Button(action: editLimit) {
+                Label("Daily limit: \(DataFormat.string(snapshot.dailyBudgetBytes))\(isOwnLimit ? "" : " (auto)")",
+                      systemImage: "slider.horizontal.3")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 36)
+                    .overlay(Capsule().strokeBorder(.white.opacity(0.6), lineWidth: 1))
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityHint("Set your own daily limit and when you're warned")
         }
         .auraCard(glow: color, from: .top)
     }
@@ -240,6 +258,13 @@ private struct SetupCard: View {
                         .frame(maxWidth: .infinity, minHeight: 36)
                         .overlay(Capsule().strokeBorder(.white, lineWidth: 1))
                 }
+            }
+            NavigationLink {
+                HelpView()
+            } label: {
+                Label("How DataTracker works", systemImage: "questionmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.secondaryText)
             }
         }
         .auraCard(glow: Theme.purple, from: .topTrailing)

@@ -41,6 +41,19 @@ final class DashboardModel: ObservableObject {
         reloadSnapshot()
     }
 
+    /// The adaptive budget for today under `s`, whether or not `s` uses a fixed limit.
+    func autoBudget(for s: BudgetSettings) -> Int64 {
+        var auto = s
+        auto.useFixedBudget = false
+        return Budget.dailyBudget(auto, bundleUsed: snapshot.bundleUsedBytes,
+                                  todayUsed: snapshot.todayBytes, now: Date())
+    }
+
+    /// Today's budget under `s`: the user's own limit, or the adaptive one.
+    func effectiveBudget(for s: BudgetSettings) -> Int64 {
+        s.useFixedBudget ? Budget.bytes(fromGB: s.fixedDailyBudgetGB) : autoBudget(for: s)
+    }
+
     /// Hides the first-run card without entering anything.
     func skipSetup() {
         var s = settings

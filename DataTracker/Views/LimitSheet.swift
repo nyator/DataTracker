@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// "Daily limit" sheet, opened from the Today card: choose an automatic budget
+/// "Daily limit" sheet, opened from the dashboard and the Daily plan page: choose an automatic budget
 /// or type your own limit, and when to be warned.
 struct LimitSheet: View {
     @EnvironmentObject private var model: DashboardModel

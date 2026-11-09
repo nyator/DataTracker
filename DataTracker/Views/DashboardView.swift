@@ -3,11 +3,17 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject private var model: DashboardModel
     @State private var showLimit = false
+    @State private var openInsight: Insight?
+
+    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
     var body: some View {
         let s = model.snapshot
+        let figures = InsightFigures(snapshot: s, settings: model.settings)
         ScrollView {
-            VStack(spacing: 12) {
+            VStack(spacing: 20) {
+                Header(snapshot: s, fixedBudget: model.settings.useFixedBudget)
+
                 if !s.hasCellularInterface {
                     NoticeCard(systemImage: "antenna.radiowaves.left.and.right.slash",
                                text: "No cellular interface found. Usage is only measured on an iPhone with mobile data.")
@@ -20,211 +26,168 @@ struct DashboardView: View {
                     SetupCard(skip: model.skipSetup)
                 }
 
-                TodayCard(snapshot: s, isOwnLimit: model.settings.useFixedBudget) { showLimit = true }
-                // Pace is meaningless until real usage so far has been entered.
-                BundleCard(snapshot: s, showPace: model.settings.isSetUp,
-                           fixedBudget: model.settings.useFixedBudget)
-                HistoryCard(snapshot: s)
+                TodayHero(snapshot: s)
+
+                StatRow(snapshot: s, isOwnLimit: model.settings.useFixedBudget) { showLimit = true }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Insights")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .accessibilityAddTraits(.isHeader)
+
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ForEach(Insight.allCases) { insight in
+                            Button {
+                                openInsight = insight
+                            } label: {
+                                InsightCard(insight: insight, figures: figures)
+                            }
+                            .buttonStyle(PressableStyle())
+                        }
+                    }
+                }
+                .padding(.top, 8)
 
                 Footer(lastSample: s.lastSampleDate)
             }
             .padding(.horizontal)
             .padding(.bottom)
         }
-        .background(Theme.page)
+        .background(WashBackground(color: s.level.wash).ignoresSafeArea())
+        .animation(.easeInOut(duration: 0.4), value: s.level)
         .refreshable { model.refresh() }
         .sheet(isPresented: $showLimit) { LimitSheet() }
+        .fullScreenCover(item: $openInsight) { insight in
+            InsightPager(start: insight)
+                .environmentObject(model)
+        }
     }
 }
 
-/// Title on the left, pill on the right; stacked when they don't fit side by side.
-private struct CardHeader: View {
-    let title: String
-    var pill: String?
-    var pillColor: Color = .white
+/// "Monday 9 Nov" in a glass pill, days left under it, and the round
+/// Help and Settings buttons on the right.
+private struct Header: View {
+    let snapshot: UsageSnapshot
+    let fixedBudget: Bool
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack {
-                Text(title).font(Theme.cardTitle).fixedSize()
-                Spacer()
-                if let pill { Pill(text: pill, color: pillColor).fixedSize() }
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 6) {
+                (Text(snapshot.date.formatted(.dateTime.weekday(.wide))).fontWeight(.bold)
+                 + Text(" " + snapshot.date.formatted(.dateTime.day().month(.abbreviated))))
+                    .font(.title3)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Color.white.opacity(0.1)))
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.16), lineWidth: 1))
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.secondaryText)
+                    .padding(.leading, 10)
             }
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title).font(Theme.cardTitle)
-                if let pill { Pill(text: pill, color: pillColor) }
+            Spacer(minLength: 12)
+            HStack(spacing: 10) {
+                NavigationLink {
+                    HelpView()
+                } label: {
+                    GlassCircle(systemImage: "questionmark")
+                }
+                .accessibilityLabel("How to use")
+                NavigationLink {
+                    SettingsView()
+                } label: {
+                    GlassCircle(systemImage: "gearshape")
+                }
+                .accessibilityLabel("Settings")
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .foregroundStyle(.white)
+        .padding(.top, 8)
+    }
+
+    private var subtitle: String {
+        if fixedBudget && snapshot.daysLeft == 0 { return "Your own daily limit" }
+        return "\(snapshot.daysLeft) \(snapshot.daysLeft == 1 ? "day" : "days") left in your bundle"
     }
 }
 
-private struct TodayCard: View {
+/// The ring drains as today's budget is used. Past the budget it refills in
+/// pink to show how far over (a quarter ring = 25% over).
+private struct TodayHero: View {
+    let snapshot: UsageSnapshot
+
+    @ScaledMetric(relativeTo: .largeTitle) private var ringSize: CGFloat = 290
+
+    var body: some View {
+        let size = min(ringSize, 330)
+        let over = snapshot.isOverToday
+        HeroRing(fraction: snapshot.ringFraction, colors: snapshot.level.ringColors) {
+            VStack(spacing: 6) {
+                figureText(snapshot.ringFigureBytes, font: FigureFont.hero, unitFont: .title3.weight(.semibold))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Text(over ? "over today's budget" : "left today")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.secondaryText)
+                HStack(spacing: 6) {
+                    Circle().fill(snapshot.level.ringColors.last ?? .white).frame(width: 7, height: 7)
+                    Text(snapshot.level.label)
+                }
+                .font(Theme.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Color.white.opacity(0.08)))
+                .padding(.top, 4)
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .frame(width: size * 0.56)
+        }
+        .frame(width: size, height: size)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Daily limit (opens the sheet), used today, and the amount from tomorrow.
+private struct StatRow: View {
     let snapshot: UsageSnapshot
     let isOwnLimit: Bool
     let editLimit: () -> Void
 
-    /// Grows with the text size, capped so it still fits a phone's width.
-    @ScaledMetric(relativeTo: .title) private var ringSize: CGFloat = 220
-
     var body: some View {
-        let size = min(ringSize, 290)
-        let color = snapshot.level.color
-        VStack(spacing: 16) {
-            CardHeader(title: "Today", pill: snapshot.level.label, pillColor: color)
-
-            UsageRing(fraction: snapshot.todayFraction, color: color, lineWidth: 16) {
-                // Each line stays whole and shrinks to fit inside the ring rather than wrapping.
-                VStack(spacing: 4) {
-                    Text("Used today")
-                        .font(Theme.caption)
-                        .foregroundStyle(Theme.secondaryText)
-                    figureText(snapshot.todayBytes)
-                        .monospacedDigit()
-                    Text("of \(DataFormat.string(snapshot.dailyBudgetBytes)) · \(Int((snapshot.todayFraction * 100).rounded()))%")
-                        .font(Theme.caption)
-                        .foregroundStyle(Theme.secondaryText)
-                }
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
-                .frame(width: size * 0.66)
-            }
-            .frame(width: size, height: size)
-            .frame(maxWidth: .infinity)
-
-            statusLine
-                .font(.headline)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-
+        HStack(alignment: .top, spacing: 8) {
             Button(action: editLimit) {
-                Label("Daily limit: \(DataFormat.string(snapshot.dailyBudgetBytes))\(isOwnLimit ? "" : " (auto)")",
-                      systemImage: "slider.horizontal.3")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .padding(.horizontal, 16)
-                    .frame(minHeight: 36)
-                    .overlay(Capsule().strokeBorder(.white.opacity(0.6), lineWidth: 1))
+                stat(isOwnLimit ? "My limit" : "Daily limit", snapshot.dailyBudgetBytes, chevron: true)
             }
-            .frame(maxWidth: .infinity)
+            .buttonStyle(.plain)
             .accessibilityHint("Set your own daily limit and when you're warned")
+            stat("Used today", snapshot.todayBytes)
+            stat("From tomorrow", snapshot.recommendedFromTomorrowBytes)
         }
-        .auraCard(glow: color, from: .top)
     }
 
-    private var statusLine: Text {
-        if snapshot.todayBytes > snapshot.dailyBudgetBytes {
-            return Text(DataFormat.string(snapshot.todayBytes - snapshot.dailyBudgetBytes)).foregroundColor(.white)
-                + Text(" over today's budget").foregroundColor(Theme.secondaryText)
-        }
-        return Text(DataFormat.string(snapshot.todayRemainingBytes)).foregroundColor(.white)
-            + Text(" left today").foregroundColor(Theme.secondaryText)
-    }
-}
-
-private struct BundleCard: View {
-    let snapshot: UsageSnapshot
-    let showPace: Bool
-    let fixedBudget: Bool
-
-    /// Within 100 MB either way counts as on pace.
-    private static let tolerance: Int64 = 100 * 1_048_576
-
-    var body: some View {
-        let s = snapshot
-        let pace = showPace ? s.paceBytes : nil
-        let color = (pace ?? 0) < -Self.tolerance ? Theme.orange : Theme.lime
-        VStack(alignment: .leading, spacing: 14) {
-            CardHeader(title: "Bundle", pill: "\(s.daysLeft) \(s.daysLeft == 1 ? "day" : "days") left")
-
-            VStack(alignment: .leading, spacing: 2) {
-                figureText(s.bundleUsedBytes)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                Text("used of \(DataFormat.string(s.bundleBytes)) · \(DataFormat.string(s.bundleRemainingBytes)) left")
-                    .font(Theme.caption)
-                    .foregroundStyle(Theme.secondaryText)
+    private func stat(_ label: String, _ bytes: Int64, chevron: Bool = false) -> some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 3) {
+                Text(label)
+                if chevron { Image(systemName: "chevron.right").imageScale(.small) }
             }
-
-            TickMeter(fraction: s.bundleFraction, color: color)
-
-            summary(pace: pace)
-                .font(.subheadline)
-                .fixedSize(horizontal: false, vertical: true)
+            .font(Theme.caption)
+            .foregroundStyle(Theme.secondaryText)
+            figureText(bytes, font: FigureFont.stat, unitFont: .footnote)
+                .monospacedDigit()
         }
-        .auraCard(glow: pace == nil ? Theme.purple : color.opacity(0.8), from: .bottomLeading)
-    }
-
-    /// The kit's "Goal Progress" sentence: grey text with the key facts in white.
-    private func summary(pace: Int64?) -> Text {
-        let dim = Theme.tertiaryText
-        let perDay = Text("\(DataFormat.string(snapshot.recommendedFromTomorrowBytes)) a day").foregroundColor(.white)
-        guard let pace else {
-            return Text("From tomorrow you can use ").foregroundColor(dim) + perDay
-                + Text(fixedBudget ? " to make the bundle last." : ".").foregroundColor(dim)
-        }
-        if abs(pace) < Self.tolerance {
-            return Text("You're ").foregroundColor(dim) + Text("on pace").foregroundColor(.white)
-                + Text(". Keep to ").foregroundColor(dim) + perDay + Text(" from tomorrow.").foregroundColor(dim)
-        }
-        if pace > 0 {
-            return Text("You're ").foregroundColor(dim)
-                + Text("\(DataFormat.string(pace)) under pace").foregroundColor(.white)
-                + Text(" and can use ").foregroundColor(dim) + perDay + Text(" from tomorrow.").foregroundColor(dim)
-        }
-        return Text("You're ").foregroundColor(dim)
-            + Text("\(DataFormat.string(-pace)) over pace").foregroundColor(.white)
-            + Text(". Keep to ").foregroundColor(dim) + perDay + Text(" to make it last.").foregroundColor(dim)
-    }
-}
-
-private struct HistoryCard: View {
-    let snapshot: UsageSnapshot
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            let legend = Label("Budget \(DataFormat.string(snapshot.dailyBudgetBytes))", systemImage: "line.horizontal.3")
-                .labelStyle(BudgetLegendStyle())
-            // Side by side when they fit; stacked at large text sizes.
-            ViewThatFits(in: .horizontal) {
-                HStack {
-                    Text("Last 14 days").font(Theme.cardTitle).fixedSize()
-                    Spacer()
-                    legend.fixedSize()
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Last 14 days").font(Theme.cardTitle)
-                    legend
-                }
-            }
-            .foregroundStyle(.white)
-
-            HistoryChart(days: snapshot.history, budgetBytes: snapshot.dailyBudgetBytes,
-                         todayColor: snapshot.level.color)
-                .frame(height: 190)
-        }
-        .auraCard(glow: Theme.blue.opacity(0.7), from: .topLeading)
-    }
-}
-
-/// A short dashed line + text, matching the budget line in the chart.
-private struct BudgetLegendStyle: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 4) {
-            Path { p in
-                p.move(to: CGPoint(x: 0, y: 0.5))
-                p.addLine(to: CGPoint(x: 16, y: 0.5))
-            }
-            .stroke(Theme.secondaryText, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-            .frame(width: 16, height: 1)
-            configuration.title
-        }
-        .font(Theme.caption)
-        .foregroundStyle(Theme.secondaryText)
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -246,28 +209,23 @@ private struct SetupCard: View {
                     SettingsView()
                 } label: {
                     Text("Set up")
-                        .font(.subheadline.weight(.medium))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.black)
-                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .frame(maxWidth: .infinity, minHeight: 40)
                         .background(Capsule().fill(.white))
                 }
                 Button(action: skip) {
                     Text("Skip")
-                        .font(.subheadline.weight(.medium))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                        .overlay(Capsule().strokeBorder(.white, lineWidth: 1))
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .background(Capsule().fill(Color.white.opacity(0.12)))
                 }
             }
-            NavigationLink {
-                HelpView()
-            } label: {
-                Label("How DataTracker works", systemImage: "questionmark.circle")
-                    .font(.footnote)
-                    .foregroundStyle(Theme.secondaryText)
-            }
         }
-        .auraCard(glow: Theme.purple, from: .topTrailing)
+        .padding(Theme.padding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(Insight.bundle.tint.card))
     }
 }
 
@@ -279,7 +237,9 @@ private struct NoticeCard: View {
         Label(text, systemImage: systemImage)
             .font(.subheadline)
             .foregroundStyle(.white)
-            .auraCard(glow: Theme.orange.opacity(0.7), from: .leading)
+            .padding(Theme.padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(Insight.calendar.tint.card))
     }
 }
 

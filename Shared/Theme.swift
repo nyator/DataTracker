@@ -46,15 +46,7 @@ extension Color {
 }
 
 extension UsageSnapshot.Level {
-    var color: Color {
-        switch self {
-        case .ok: return Theme.green
-        case .warning: return Theme.orange
-        case .over: return Theme.pink
-        }
-    }
-
-    /// Short status for the Today card's pill.
+    /// Short status for the ring's pill.
     var label: String {
         switch self {
         case .ok: return "On track"
@@ -99,39 +91,64 @@ func figureText(_ bytes: Int64, font: Font = Theme.hero, unitFont: Font = .subhe
         + Text(" \(parts.unit)").font(unitFont).foregroundColor(Theme.secondaryText)
 }
 
-/// Small capsule label, e.g. "62 days left".
-struct Pill: View {
-    let text: String
-    var color: Color = .white
 
-    var body: some View {
-        Text(text)
-            .font(Theme.caption.weight(.medium))
-            .foregroundStyle(color)
-            .lineLimit(1)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .overlay(Capsule().strokeBorder(color.opacity(0.6), lineWidth: 1))
+// MARK: - Dashboard style (shared with the widget)
+
+/// Chart colours shared by the dashboard, its insight pages and the widget.
+enum Palette {
+    static let teal = Color(hex: 0x5ED9C4)
+    static let cyan = Color(hex: 0x5CD6E6)
+    static let orange = Color(hex: 0xF0A04B)
+    static let blue = Color(hex: 0x3D8BFF)
+    static let skyBlue = Color(hex: 0x5BC8FA)
+    static let magenta = Color(hex: 0xD94FE0)
+    static let yellow = Color(hex: 0xF2CF4B)
+    static let green = Color(hex: 0x4ADE80)
+    static let red = Color(hex: 0xF0525F)
+    static let ink = Color(hex: 0x050508)
+}
+
+extension UsageSnapshot.Level {
+    /// The hero ring's gradient, start to end.
+    var ringColors: [Color] {
+        switch self {
+        case .ok: return [Color(hex: 0x2F6BFF), Palette.skyBlue]
+        case .warning: return [Color(hex: 0xF97316), Color(hex: 0xFDBA74)]
+        case .over: return [Color(hex: 0xDB2777), Color(hex: 0xF472B6)]
+        }
+    }
+
+    /// The dashboard's background wash.
+    var wash: Color {
+        switch self {
+        case .ok: return Color(hex: 0x0F2A4D)
+        case .warning: return Color(hex: 0x3D2410)
+        case .over: return Color(hex: 0x3D0F26)
+        }
     }
 }
 
-/// Segmented meter (the kit's "Credit Score" bar): lit segments up to `fraction`.
-struct TickMeter: View {
-    let fraction: Double
-    var color: Color
-    var segments = 32
-    var height: CGFloat = 28
+/// A screen background: a colour wash at the top fading into near-black.
+struct WashBackground: View {
+    let color: Color
 
     var body: some View {
-        let lit = Int((min(max(fraction, 0), 1) * Double(segments)).rounded())
-        HStack(spacing: 3) {
-            ForEach(0..<segments, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(i < lit ? color : Color.white.opacity(0.18))
-            }
+        ZStack {
+            Palette.ink
+            LinearGradient(colors: [color, color.opacity(0.35), .clear],
+                           startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.6))
         }
-        .frame(height: height)
-        .accessibilityElement()
-        .accessibilityLabel("\(Int((fraction * 100).rounded())) percent used")
     }
+}
+
+extension UsageSnapshot {
+    /// True once today's usage has passed today's budget.
+    var isOverToday: Bool { todayBytes > dailyBudgetBytes }
+
+    /// The lit part of the hero ring: what's left of today's budget, or once
+    /// over, how far over (a quarter ring = 25% over).
+    var ringFraction: Double { isOverToday ? todayFraction - 1 : 1 - todayFraction }
+
+    /// The ring's centre figure: left today, or over by.
+    var ringFigureBytes: Int64 { isOverToday ? todayBytes - dailyBudgetBytes : todayRemainingBytes }
 }

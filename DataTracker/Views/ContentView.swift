@@ -9,26 +9,10 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
+            // The dashboard draws its own header (date pill, Help and Settings buttons).
             DashboardView()
-                .navigationTitle("DataTracker")
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        NavigationLink {
-                            HelpView()
-                        } label: {
-                            Image(systemName: "questionmark.circle")
-                        }
-                        .accessibilityLabel("How to use")
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        NavigationLink {
-                            SettingsView()
-                        } label: {
-                            Image(systemName: "gearshape")
-                        }
-                        .accessibilityLabel("Settings")
-                    }
-                }
+                .navigationTitle("Today")
+                .toolbar(.hidden, for: .navigationBar)
         }
         // The AURA-inspired look is dark only; white controls echo its white pill buttons.
         .preferredColorScheme(.dark)

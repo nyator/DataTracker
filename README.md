@@ -3,11 +3,12 @@
 An iPhone app that alerts you when today's mobile data usage nears or passes a daily budget. It
 reads the system's cellular byte counters directly. There is no VPN or Network Extension.
 
-- **Today**: a progress ring of today's usage against the budget, which turns orange at the first
+- **Today**: a ring showing how much of today's budget is left, which turns orange at the first
   alert and red at the second.
 - **Bundle**: total used of the bundle, data left, days left, and a recommended daily amount from
   tomorrow on.
-- **History**: a 14-day bar chart (Swift Charts). Days over budget are red.
+- **Insights**: Trend, Bundle, Calendar, Pace, Daily plan and Data left cards, each opening a
+  full-screen page with a chart (Swift Charts). Swipe between pages.
 - **Alerts**: local notifications at 80% and 100% of the day's budget (both configurable), each at
   most once per day.
 - **Widget**: home screen (small and medium) and lock screen (circular and rectangular).
@@ -62,13 +63,15 @@ Shared/                         Compiled into the app, widget and tests
   TrackerEngine.swift             Pure state transitions (ingest, alerts, snapshot)
   UsageStore.swift                App Group persistence + cross-process lock
   UsageTracker.swift              Facade used by the app, background task and widget
-  UsageRing.swift                 Progress ring view (app + widget)
+  HeroRing.swift                  Today ring with dotted track (app + widget)
+  Theme.swift                     Colours and status washes (app + widget)
 DataTracker/                    App target
   DataTrackerApp.swift            App entry, AppDelegate (registers the BG task)
   BackgroundRefresh.swift         BGTaskScheduler registration, scheduling, handler
   Notifier.swift                  Local notifications
   DashboardModel.swift            View model
-  Views/                          ContentView, DashboardView, HistoryChart, SettingsView
+  Insights.swift                  Figures behind the Insights cards (trend, pace, projection)
+  Views/                          Dashboard, Insights cards and detail pages, Settings, Help
   Info.plist, DataTracker.entitlements, PrivacyInfo.xcprivacy, Assets.xcassets
 DataTrackerWidget/              Widget extension
   DataTrackerWidget.swift         Timeline provider + views

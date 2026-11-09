@@ -54,8 +54,8 @@ struct DataTrackerWidget: Widget {
         StaticConfiguration(kind: AppGroup.widgetKind, provider: UsageProvider()) { entry in
             UsageWidgetView(entry: entry)
                 .containerBackground(for: .widget) {
-                    // Near-black with a glow in today's status colour (green / orange / pink).
-                    GlowBackground(color: entry.snapshot.level.color, from: .top, radius: 220)
+                    // Near-black with a wash in today's status colour (blue / orange / pink).
+                    WashBackground(color: entry.snapshot.level.wash)
                 }
         }
         .configurationDisplayName("Data Today")
@@ -82,70 +82,81 @@ struct UsageWidgetView: View {
     private var percentText: String { "\(Int((s.todayFraction * 100).rounded()))%" }
 
     private var remainingText: String {
-        s.todayBytes > s.dailyBudgetBytes
+        s.isOverToday
             ? "\(DataFormat.string(s.todayBytes - s.dailyBudgetBytes)) over"
             : "\(DataFormat.string(s.todayRemainingBytes)) left"
     }
 
-    private var small: some View {
-        UsageRing(fraction: s.todayFraction, color: s.level.color, lineWidth: 10) {
-            VStack(spacing: 2) {
-                Text("Today")
+    /// The dashboard's ring: drains through the day, refills in pink once over.
+    private var ring: some View {
+        HeroRing(fraction: s.ringFraction, colors: s.level.ringColors, lineWidth: 11, dotCount: 28) {
+            VStack(spacing: 1) {
+                figureText(s.ringFigureBytes, font: .system(.title3).weight(.bold), unitFont: .caption2.weight(.semibold))
+                    .monospacedDigit()
+                Text(s.isOverToday ? "over today" : "left today")
                     .font(.caption2)
                     .foregroundStyle(Theme.secondaryText)
-                figureText(s.todayBytes, font: .system(.title3).weight(.medium), unitFont: .caption2)
-                    .monospacedDigit()
-                Text(remainingText)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(s.level.color)
             }
             .lineLimit(1)
             .minimumScaleFactor(0.6)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 26)
+        }
+    }
+
+    private var small: some View {
+        ring
+            .environment(\.colorScheme, .dark)
+    }
+
+    private var medium: some View {
+        HStack(spacing: 18) {
+            ring
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    Circle().fill(s.level.ringColors.last ?? .white).frame(width: 7, height: 7)
+                    Text(s.level.label)
+                }
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Color.white.opacity(0.1)))
+
+                stat("Used today", s.todayBytes, suffix: "of \(DataFormat.string(s.dailyBudgetBytes))")
+
+                VStack(alignment: .leading, spacing: 5) {
+                    stat("Bundle left", s.bundleRemainingBytes,
+                         suffix: "\(s.daysLeft) \(s.daysLeft == 1 ? "day" : "days")")
+                    GeometryReader { g in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.white.opacity(0.12))
+                            Capsule().fill(Palette.teal)
+                                .frame(width: max(g.size.width * (1 - min(s.bundleFraction, 1)), 6))
+                        }
+                    }
+                    .frame(height: 6)
+                }
+            }
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .environment(\.colorScheme, .dark)
     }
 
-    private var medium: some View {
-        HStack(spacing: 16) {
-            UsageRing(fraction: s.todayFraction, color: s.level.color, lineWidth: 10) {
-                VStack(spacing: 2) {
-                    Text("Used today")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.secondaryText)
-                    figureText(s.todayBytes, font: .system(.title3).weight(.medium), unitFont: .caption2)
-                        .monospacedDigit()
-                    Text("of \(DataFormat.string(s.dailyBudgetBytes))")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.secondaryText)
-                }
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .padding(.horizontal, 12)
+    private func stat(_ label: String, _ bytes: Int64, suffix: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(Theme.secondaryText)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                figureText(bytes, font: .headline.weight(.bold), unitFont: .caption2)
+                    .monospacedDigit()
+                Text(suffix)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.tertiaryText)
             }
-            VStack(alignment: .leading, spacing: 8) {
-                Text(remainingText + " today")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(s.level.color)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Bundle")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.secondaryText)
-                    figureText(s.bundleRemainingBytes, font: .headline.weight(.medium), unitFont: .caption2)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    TickMeter(fraction: s.bundleFraction, color: Theme.lime, segments: 20, height: 14)
-                    Text("left · \(s.daysLeft) \(s.daysLeft == 1 ? "day" : "days")")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.secondaryText)
-                }
-            }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .environment(\.colorScheme, .dark)
     }
 
     private var circular: some View {

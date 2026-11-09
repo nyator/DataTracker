@@ -37,7 +37,7 @@ jobs:
         run: bundle exec fastlane test
 
       # Catches a mis-pasted secret before signing, naming which one is wrong.
-      # Prints only lengths and short fingerprints, never the values.
+      # Checks what each secret contains; never prints the values.
       - name: Check signing secrets
         if: github.event_name != 'pull_request'
         env:
@@ -48,17 +48,31 @@ jobs:
           DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
         run: |
           ok=true
-          check() { # name, actual, expected
-            if [ "$2" = "$3" ]; then echo "OK    $1"; else echo "WRONG $1: got $2, expected $3"; ok=false; fi
-          }
-          check "ASC_KEY_ID length" "${#ASC_KEY_ID}" 10
-          check "ASC_ISSUER_ID length" "${#ASC_ISSUER_ID}" 36
-          check "ASC_KEY_P8_BASE64 length" "${#ASC_KEY_P8_BASE64}" 344
-          check "DIST_CERT_P12_BASE64 length" "${#DIST_CERT_P12_BASE64}" 4272
-          check "DIST_CERT_PASSWORD length" "${#DIST_CERT_PASSWORD}" 32
-          check "ASC_KEY_P8_BASE64 fingerprint" "$(printf %s "$ASC_KEY_P8_BASE64" | base64 -D 2>/dev/null | shasum -a 256 | cut -c1-12)" ca1531f3da97
-          check "DIST_CERT_P12_BASE64 fingerprint" "$(printf %s "$DIST_CERT_P12_BASE64" | base64 -D 2>/dev/null | shasum -a 256 | cut -c1-12)" 88a7a26e169e
-          $ok || { echo "::error::One or more secrets don't match. Re-paste the ones marked WRONG."; exit 1; }
+          pass() { echo "OK    $1"; }
+          fail() { echo "WRONG $1"; ok=false; }
+          tmp=$(mktemp -d)
+
+          [ ${#ASC_KEY_ID} -eq 10 ] && pass "ASC_KEY_ID" || fail "ASC_KEY_ID: should be the 10-character Key ID, got ${#ASC_KEY_ID} characters"
+          [[ "$ASC_ISSUER_ID" =~ ^[0-9a-fA-F-]{36}$ ]] && pass "ASC_ISSUER_ID" || fail "ASC_ISSUER_ID: should be a 36-character UUID, got ${#ASC_ISSUER_ID} characters"
+
+          printf %s "$ASC_KEY_P8_BASE64" | base64 -D > "$tmp/key.p8" 2>/dev/null
+          grep -q "BEGIN PRIVATE KEY" "$tmp/key.p8" && pass "ASC_KEY_P8_BASE64" \
+            || fail "ASC_KEY_P8_BASE64: not a base64-encoded .p8 key (got ${#ASC_KEY_P8_BASE64} characters)"
+
+          printf %s "$DIST_CERT_P12_BASE64" | base64 -D > "$tmp/cert.p12" 2>/dev/null
+          if [ ! -s "$tmp/cert.p12" ]; then
+            fail "DIST_CERT_P12_BASE64: empty or not base64 (got ${#DIST_CERT_P12_BASE64} characters)"
+          elif subject=$(openssl pkcs12 -in "$tmp/cert.p12" -passin env:DIST_CERT_PASSWORD -nokeys 2>/dev/null \
+                         || openssl pkcs12 -legacy -in "$tmp/cert.p12" -passin env:DIST_CERT_PASSWORD -nokeys 2>/dev/null); then
+            pass "DIST_CERT_PASSWORD opens DIST_CERT_P12_BASE64"
+            echo "$subject" | grep -q "Apple Distribution" && pass "Certificate is Apple Distribution" \
+              || fail "DIST_CERT_P12_BASE64: certificate is not an Apple Distribution certificate"
+          else
+            fail "DIST_CERT_PASSWORD doesn't open DIST_CERT_P12_BASE64 (wrong password, or not a .p12)"
+          fi
+
+          rm -rf "$tmp"
+          $ok || { echo "::error::One or more signing secrets are wrong. Re-set the ones marked WRONG."; exit 1; }
 
       # Uploads only from main (push or manual run), never from pull requests.
       - name: Build, sign and upload to TestFlight

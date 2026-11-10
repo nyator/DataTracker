@@ -36,6 +36,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.builtelo.DataTracker
+        # iPhone only. XcodeGen's target default (1,2) would override the
+        # project-level setting and make the app claim iPad support.
+        TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_FILE: DataTracker/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_ENTITLEMENTS: DataTracker/DataTracker.entitlements
@@ -52,6 +55,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.builtelo.DataTracker.Widget
+        TARGETED_DEVICE_FAMILY: "1"
         PRODUCT_NAME: DataTrackerWidget
         INFOPLIST_FILE: DataTrackerWidget/Info.plist
         GENERATE_INFOPLIST_FILE: NO
